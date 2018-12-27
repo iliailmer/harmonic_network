@@ -1,4 +1,5 @@
-from imports import nn
+from torch import nn
+
 
 class Flatten(nn.Module):
     def __init__(self):

@@ -2,7 +2,6 @@ from sklearn.model_selection import train_test_split
 from skimage import io
 from skimage.transform import resize
 from skimage import color
-import torchvision
 import torch
 from torch.utils.data import Dataset as Dataset
 import os
@@ -21,7 +20,10 @@ class Loader(Dataset):
         self.train_names, self.test_names, self.train_labels,  self.test_labels = train_test_split(np.asarray(self.data),
                                                                                                    np.asarray(self.labels))
         self.color_transform_dict = {
-            'rgb': color.rgb2rgbcie, 'hed': color.rgb2hed, 'gray': color.rgb2gray, None: None}
+            'rgb': color.rgb2rgbcie, 
+            'hed': color.rgb2hed, 
+            'gray': color.rgb2gray, 
+            None: None}
 
         if self.train:
             if self.color_transform_dict[color_space] is not None:
