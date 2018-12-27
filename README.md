@@ -8,8 +8,13 @@ The dataset I was using is the [skin cancer MNIST](https://www.kaggle.com/kmader
 
 I really enjoyed working on this project, I will try to fix some errors it has.
 
+# Running
+
+No models in here are pre-trained. Also, I have not (yet) been able to properly test the scripts for training and testing the model, so this is also on the to-do list.
+
 ## To do:
 
+* Test scripts on HAM10000, CIFAR10(?)
 * Argument Parsing
 * Add other color spaces to the model
 * Add alpha-rooting enhancement
