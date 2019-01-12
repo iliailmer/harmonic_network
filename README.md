@@ -14,8 +14,7 @@ No models in here are pre-trained. Also, I have not (yet) been able to properly 
 
 ## To do:
 
-* Test scripts on HAM10000, CIFAR10(?)
+* Test on HAM10000, CIFAR10(?)
 * Argument Parsing
-* Add other color spaces to the model
 * Add alpha-rooting enhancement
 * Add some selection of a single color channel out of 3 (based on quality)
