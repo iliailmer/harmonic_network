@@ -34,9 +34,11 @@ class HarmonicBlock(nn.Module):
         self.get_filter_bank()
 
     def fltr(self, u, v, N, k):
-        return torch.as_tensor([[torch.cos(torch.as_tensor(v*self.PI/N*(ii+0.5)))
-                                 * torch.cos(torch.as_tensor(u*self.PI/N*(jj+0.5)))
-                                 for ii in range(k)] for jj in range(k)])
+        return torch.as_tensor([[torch.cos(torch.as_tensor(
+                                v*self.PI/N*(ii+0.5)))
+                                * torch.cos(
+                                torch.as_tensor(u*self.PI/N*(jj+0.5)))
+                                for ii in range(k)] for jj in range(k)])
 
     def get_filter_bank(self):
         self.filter_bank = torch.stack([torch.stack(

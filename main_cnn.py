@@ -69,7 +69,8 @@ def train(epoch, output_step=100):
         optimizer.step()
         losses.append(loss_.data.item())
         if batch_idx % output_step == 0:
-            print('\nTrain Epoch: {} [{}/{} ({:.0f}%)]\tTraining Loss: {:.6f}\tLR: {}'.format(
+            print('\nTrain Epoch: {} [{}/{} ({:.0f}%)]\tTraining Loss: \
+                    {:.6f}\t LR: {}'.format(
                 epoch, batch_idx * len(data), len(trainloader.dataset),
                 100. * batch_idx / len(trainloader), loss_.data.item(),
                 optimizer.param_groups[0]['lr']))
@@ -86,7 +87,8 @@ def test(epoch, output_step=50):
         test_loss_ = loss(output, label)
         losses.append(test_loss_.data.item())
         if batch_id % output_step == 0:
-            print('Testing: {} [{}/{} ({:.0f}%)]\tTesting Loss: {:.6f}\tLR: {}'.format(
+            print('Testing: {} [{}/{} ({:.0f}%)]\tTesting Loss:\
+                   {:.6f}\tLR: {}'.format(
                 epoch, batch_id * len(data), len(testloader.dataset),
                 100. * batch_id / len(testloader), test_loss_.data.item(),
                 optimizer.param_groups[0]['lr']))
