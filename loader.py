@@ -4,75 +4,84 @@ from skimage.transform import resize
 from skimage import color
 import torch
 from torch.utils.data import Dataset as Dataset
-import os
+from sklearn.utils import class_weight
 import numpy as np
 from additions import rescale
+from torchvision.transforms import ToTensor
 
 
 class Loader(Dataset):
-    def __init__(self,  path, labels, image_name=None,
+    def __init__(self,  image_path_dict, labels, image_name=None,
                  train=True, transform=None, color_space='rgb'):
         """
         Args:
-            image_name (string): Name of the file in the image
-            train (bool): whether to load training set or testing set
-            path (string): Path to the folder with images.
-            labels (np.ndarray): labels for images.
-            transform (callable, optional): Optional transform to be applied
-            on a sample.
+
         """
-        data = sorted(os.listdir(path))
-        self.path = path
+        data = list(image_path_dict.keys())  # image ids
+        self.path = image_path_dict
         self.train = train
-        self.name = image_name
-        self.transform = transform
+        # self.name = image_name
+        self.transform = transform  # augmentation transforms
         self.train_names, self.test_names, \
             self.train_labels,  self.test_labels = train_test_split(
                 np.asarray(data),
-                np.asarray(labels),
-                test_size=0.1)
+                np.asarray(
+                    labels),
+                test_size=0.2)
         self.color_transform_dict = {
             'rgb': color.rgb2rgbcie,
             'hed': color.rgb2hed,
             'hsv': color.rgb2hsv, None: None}
 
         if self.train:
+            self.weights = class_weight.compute_class_weight(
+                'balanced',
+                np.unique(
+                    self.train_labels),
+                self.train_labels)
             if self.color_transform_dict[color_space] is not None:
-                self.train_data = torch.from_numpy(
-                    np.asarray([rescale(np.transpose(
-                        resize(self.color_transform_dict[color_space](
-                            io.imread(
-                                os.path.join(self.path, name))),
-                               (224, 224),
-                               mode='reflect').astype('float32'),
-                        (2, 1, 0))) for name in self.train_names]))
+                self.train_data = np.asarray([
+                    rescale(
+                        resize(
+                            self.color_transform_dict[color_space](
+                                rescale(
+                                    io.imread(
+                                        self.path[name]).astype('float32'))),
+                            (64, 64),  # (150,150)
+                            mode='reflect')) for name in self.train_names])
             else:
-                self.train_data = torch.from_numpy(
-                    np.asarray([rescale(
-                        np.transpose(resize(io.imread(os.path.join(
-                            self.path, name)),
-                            (224, 224),
-                            mode='reflect').astype('float32'),
-                            (2, 1, 0))) for name in self.train_names]))
+                self.train_data = np.asarray([
+                    rescale(
+                        resize(
+                            rescale(
+                                io.imread(self.path[name]).astype('float32')),
+                            (64, 64),
+                            mode='reflect')) for name in self.train_names])
             self.train_labels = torch.from_numpy(self.train_labels)
         else:
+            self.weights = class_weight.compute_class_weight(
+                'balanced',
+                np.unique(
+                    self.test_labels),
+                self.test_labels)
             if self.color_transform_dict[color_space] is not None:
-                self.test_data = torch.from_numpy(
-                    np.asarray([rescale(np.transpose(
-                        resize(self.color_transform_dict[color_space](
-                            io.imread(
-                                os.path.join(self.path, name))),
-                               (224, 224),
-                               mode='reflect').astype('float32'),
-                        (2, 1, 0))) for name in self.test_names]))
+                self.test_data = np.asarray([
+                    rescale(
+                        resize(
+                            self.color_transform_dict[color_space](
+                                rescale(
+                                    io.imread(
+                                        self.path[name]).astype('float32'))),
+                            (64, 64),
+                            mode='reflect')) for name in self.test_names])
             else:
-                self.test_data = torch.from_numpy(
-                    np.asarray([rescale(
-                        np.transpose(resize(io.imread(os.path.join(
-                            self.path, name)),
-                            (224, 224),
-                            mode='reflect').astype('float32'),
-                            (2, 1, 0))) for name in self.test_names]))
+                self.test_data = np.asarray([
+                    rescale(
+                        resize(
+                            rescale(
+                                io.imread(self.path[name]).astype('float32')),
+                            (64, 64),
+                            mode='reflect')) for name in self.test_names])
             self.test_labels = torch.from_numpy(self.test_labels)
 
     def __len__(self):
@@ -83,7 +92,14 @@ class Loader(Dataset):
 
     def __getitem__(self, index):
         if self.train:
-            image, label = self.train_data[index], self.train_labels[index]
+            if self.transform is not None:
+                image = ToTensor()(self.transform(
+                    **{'image': self.train_data[index]})['image'])
+                label = self.train_labels[index]
+            else:
+                image, label = ToTensor()(
+                    self.train_data[index]), self.train_labels[index]
         else:
-            image, label = self.test_data[index], self.test_labels[index]
+            image, label = ToTensor()(
+                self.test_data[index]), self.test_labels[index]
         return image, label
