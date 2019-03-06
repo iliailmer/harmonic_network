@@ -15,6 +15,7 @@ def rescale_torch(image: Tensor) -> Tensor:
 
 def edges(image: np.ndarray,
           size: int = 3) -> np.ndarray:
+    image = rescale(image)
     ratio = np.zeros_like(image)
     if len(image.shape) > 2:
         ratio = np.divide(maximum_filter(image, (size, size, size))+1,
@@ -24,6 +25,20 @@ def edges(image: np.ndarray,
                           minimum_filter(image, (size, size))+1)
     ratio = rescale(20*np.log(ratio))
     return ratio
+
+
+def add_edges(image: np.ndarray, a: float = 0.5, b: float = 0.5,
+              size: int = 3) -> np.ndarray:
+    ratio = np.zeros_like(image)
+    if len(image.shape) > 2:
+        ratio = np.divide(maximum_filter(image, (size, size, size))+1,
+                          minimum_filter(image, (size, size, size))+1)
+    else:
+        ratio = np.divide(maximum_filter(image, (size, size))+1,
+                          minimum_filter(image, (size, size))+1)
+    ratio = rescale(20*np.log(ratio))
+    image = rescale(image)
+    return (a*image+b*ratio)/(a+b)
 
 
 def EME(image):

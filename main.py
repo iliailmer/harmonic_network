@@ -87,7 +87,7 @@ test_losses = []  # type: List[float]
 train_accs = []  # type: List[float]
 test_accs = []  # type: List[float]
 
-criterion = nn.CrossEntropyLoss()
+criterion = nn.BCEWithLogitsLoss()
 # BCEWithLogitsLoss()
 # MultiLabelSoftMarginLoss()
 # BCELoss with tanh, atan
@@ -131,7 +131,7 @@ def train(epoch, model):
             data.cuda()), torch.autograd.Variable(label.cuda())
         optimizer.zero_grad()
         output = model(data)
-        label_ = label  # one_hot_enc(output, label)
+        label_ = one_hot_enc(output, label)
         loss = criterion(output, label_)
         y_pred = torch.max(output, 1)[1]
         loss.backward()
@@ -180,7 +180,7 @@ def test(epoch, model):
                 data).cuda(), torch.autograd.Variable(label).cuda()
             output = model(data)
             # one_hot_enc(output, label) # one hot encoding for loss function
-            label_ = label
+            label_ = one_hot_enc(output, label)
             loss = criterion(output, label_)
             y_pred = torch.max(output, 1)[1]
             corrects += y_pred.eq(label.data).cpu().sum()

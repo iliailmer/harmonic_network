@@ -1,7 +1,7 @@
 from skimage import color, morphology
 from skimage.filters import threshold_otsu
 import numpy as np
-from .enhancement import rescale
+from additions import rescale
 
 
 def hair_removal(image, radius=3):

@@ -8,6 +8,8 @@ from sklearn.utils import class_weight
 import numpy as np
 from additions import rescale
 from torchvision.transforms import ToTensor
+from hair_removal import hair_removal
+from additions import add_edges
 
 
 class Loader(Dataset):
@@ -25,9 +27,8 @@ class Loader(Dataset):
         self.train_names, self.test_names, \
             self.train_labels,  self.test_labels = train_test_split(
                 np.asarray(data),
-                np.asarray(
-                    labels),
-                test_size=0.2)
+                np.asarray(labels),
+                test_size=0.15)
         self.color_transform_dict = {
             'rgb': color.rgb2rgbcie,
             'hed': color.rgb2hed,
@@ -43,18 +44,24 @@ class Loader(Dataset):
                 self.train_data = np.asarray([
                     rescale(
                         resize(
-                            self.color_transform_dict[color_space](
-                                rescale(
-                                    io.imread(
-                                        self.path[name]).astype('float32'))),
+                            hair_removal(
+                                add_edges(
+                                    self.color_transform_dict[color_space](
+                                        rescale(
+                                            io.imread(
+                                                self.path[name])
+                                            .astype('float32'))))),
                             (64, 64), anti_aliasing=True,  # (150,150)
                             mode='reflect')) for name in self.train_names])
             else:
                 self.train_data = np.asarray([
                     rescale(
                         resize(
-                            rescale(
-                                io.imread(self.path[name]).astype('float32')),
+                            hair_removal(
+                                add_edges(
+                                    rescale(
+                                        io.imread(self.path[name])
+                                        .astype('float32')))),
                             (64, 64), anti_aliasing=True,
                             mode='reflect')) for name in self.train_names])
             self.train_labels = torch.from_numpy(self.train_labels)
@@ -68,18 +75,23 @@ class Loader(Dataset):
                 self.test_data = np.asarray([
                     rescale(
                         resize(
-                            self.color_transform_dict[color_space](
-                                rescale(
-                                    io.imread(
-                                        self.path[name]).astype('float32'))),
+                            hair_removal(
+                                add_edges(
+                                    self.color_transform_dict[color_space](
+                                        rescale(
+                                            io.imread(
+                                                self.path[name])
+                                            .astype('float32'))))),
                             (64, 64), anti_aliasing=True,
                             mode='reflect')) for name in self.test_names])
             else:
                 self.test_data = np.asarray([
                     rescale(
                         resize(
-                            rescale(
-                                io.imread(self.path[name]).astype('float32')),
+                            hair_removal(
+                                add_edges(rescale(
+                                    io.imread(self.path[name])
+                                    .astype('float32')))),
                             (64, 64), anti_aliasing=True,
                             mode='reflect')) for name in self.test_names])
             self.test_labels = torch.from_numpy(self.test_labels)
