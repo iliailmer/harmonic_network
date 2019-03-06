@@ -2,3 +2,4 @@
 .idea
 HAM10000_images
 metadata
+__pycache__
