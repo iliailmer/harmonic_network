@@ -10,7 +10,7 @@ from additions import rescale
 from torchvision.transforms import ToTensor
 
 
-class LocalLoader(Dataset):
+class Loader(Dataset):
     def __init__(self,  image_path_dict, labels, image_name=None,
                  train=True, transform=None, color_space='rgb'):
         """
@@ -20,6 +20,7 @@ class LocalLoader(Dataset):
         data = list(image_path_dict.keys())  # image ids
         self.path = image_path_dict
         self.train = train
+        self.color_space = color_space
         # self.name = image_name
         self.transform = transform  # augmentation transforms
         self.train_names, self.test_names, \
@@ -58,56 +59,69 @@ class LocalLoader(Dataset):
         if self.train:
             label = self.train_labels[index]
             if self.transform is not None:
-                if self.color_transform_dict[color_space] is not None:
+                if self.color_transform_dict[self.color_space] is not None:
                     d = {'image': rescale(
                         resize(
-                            self.color_transform_dict[color_space](
-                                rescale(io.imread(self.path[self.train_names[index]]).astype('float32'))),
-                            (64, 64),  # (150,150)
+                            self.color_transform_dict[self.color_space](
+                                rescale(
+                                    io.imread(
+                                        self.path[self.train_names[index]])
+                                    .astype('float32'))),
+                            (64, 64), anti_aliasing=True,  # (150,150)
                             mode='reflect'))}
                     image = ToTensor()(self.transform(d['image']))
                 else:
                     d = {'image': rescale(
                         resize(
                             rescale(
-                                io.imread(self.path[self.train_names[index]]).astype('float32')),
-                            (64, 64),  # (150,150)
+                                io.imread(
+                                    self.path[self.train_names[index]])
+                                .astype('float32')),
+                            (64, 64), anti_aliasing=True,  # (150,150)
                             mode='reflect'))}
                     image = ToTensor()(self.transform(d['image']))
             else:
-                if self.color_transform_dict[color_space] is not None:
+                if self.color_transform_dict[self.color_space] is not None:
                     d = {'image': rescale(
                         resize(
-                            self.color_transform_dict[color_space](
-                                rescale(io.imread(self.path[self.train_names[index]]).astype('float32'))),
-                            (64, 64),  # (150,150)
+                            self.color_transform_dict[self.color_space](
+                                rescale(
+                                    io.imread(
+                                        self.path[self.train_names[index]])
+                                    .astype('float32'))),
+                            (64, 64),  anti_aliasing=True,  # (150,150)
                             mode='reflect'))}
                     image = ToTensor()(d['image'])
                 else:
                     d = {'image': rescale(
                         resize(
                             rescale(
-                                io.imread(self.path[self.train_names[index]]).astype('float32')),
-                            (64, 64),  # (150,150)
+                                io.imread(
+                                    self.path[self.train_names[index]])
+                                .astype('float32')),
+                            (64, 64), anti_aliasing=True,  # (150,150)
                             mode='reflect'))}
                     image = ToTensor()(d['image'])
         else:
-            if self.color_transform_dict[color_space] is not None:
+            label = self.test_labels[index]
+            if self.color_transform_dict[self.color_space] is not None:
                 image = rescale(
                     resize(
-                        self.color_transform_dict[color_space](
+                        self.color_transform_dict[self.color_space](
                             rescale(
                                 io.imread(
-                                    self.path[self.test_names[index]]).astype('float32'))),
-                        (64, 64),
+                                    self.path[self.test_names[index]])
+                                .astype('float32'))),
+                        (64, 64), anti_aliasing=True,
                         mode='reflect'))
             else:
                 image = rescale(
                     resize(
                         rescale(
-                            io.imread(self.path[self.test_names[index]]).astype('float32')),
-                        (64, 64),
+                            io.imread(
+                                self.path[self.test_names[index]])
+                            .astype('float32')),
+                        (64, 64), anti_aliasing=True,
                         mode='reflect'))
-            image, label = ToTensor()(
-                self.test_data[index]), self.test_labels[index]
+            image = ToTensor()(image)
         return image, label

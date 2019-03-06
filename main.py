@@ -1,6 +1,7 @@
 from sklearn.metrics import f1_score, precision_score, recall_score
 # , classification_report, confusion_matrix
 from model_harmonic import HarmonicNet
+# from local_loader import LocalLoader
 from loader import Loader
 import pandas as pd
 import torch
@@ -9,7 +10,13 @@ import torch.optim as optim
 from sklearn.preprocessing import LabelEncoder
 import gc
 from typing import List
+from tqdm import tqdm
+import matplotlib.pyplot as plt
+from albumentations.augmentations.transforms import RandomRotate90
+from albumentations import Compose
 
+
+tfms = Compose([RandomRotate90(p=0.5)], p=1.)
 
 lesion_type_dict = {
     'nv': 'Melanocytic nevi',
@@ -22,7 +29,7 @@ lesion_type_dict = {
 }
 
 
-metadata = pd.read_csv('HAM10000_metadata.csv')
+metadata = pd.read_csv('metadata/HAM10000_metadata.csv')
 
 
 enc = LabelEncoder()
@@ -34,9 +41,10 @@ metadata['lesion_id'] = enc.fit_transform(metadata['lesion_id'])
 labels = metadata.dx.values
 
 imageid_path_dict = {x: f'HAM10000_images/{x}.jpg' for x in metadata.image_id}
+print("Loading data...\n")
+trainset = Loader(imageid_path_dict, labels, train=True, transform=tfms)
+testset = Loader(imageid_path_dict, labels, train=False, transform=tfms)
 
-trainset = Loader(imageid_path_dict, labels, train=True, transform=None)
-testset = Loader(imageid_path_dict, labels, train=False, transform=None)
 train_sampler = torch.utils\
     .data.WeightedRandomSampler(trainset.weights[trainset.train_labels],
                                 len(
@@ -51,15 +59,14 @@ test_sampler = torch.utils\
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=50,
                                           sampler=train_sampler,
                                           shuffle=False,
-                                          num_workers=2)
+                                          num_workers=0)
 testloader = torch.utils.data.DataLoader(testset, batch_size=50,
                                          sampler=test_sampler,
                                          shuffle=False,
-                                         num_workers=2)
+                                         num_workers=0)
 gc.collect()
 
-model_harmonic = HarmonicNet(3, 32, 4, 1, 1, (32, 32))
-
+model_harmonic = HarmonicNet(3, 32, 4, 1, 1, (64, 64))
 
 for module in model_harmonic.modules():
     if isinstance(module, nn.Conv2d):
@@ -72,7 +79,7 @@ for parameter in model_harmonic.parameters():
 model_harmonic.cuda()
 model_harmonic = torch.nn.DataParallel(
     model_harmonic, device_ids=range(torch.cuda.device_count()))
-base_lr = 0.01
+base_lr = 0.001
 param_dict = dict(model_harmonic.named_parameters())
 params = []  # type: List
 train_losses = []  # type: List[float]
@@ -96,15 +103,6 @@ best_acc = 0
 
 gc.collect()
 
-
-trainloader = torch.utils.data.DataLoader(trainloader,
-                                          batch_size=64,
-                                          shuffle=True,
-                                          num_workers=2)
-testloader = torch.utils.data.DataLoader(testloader,
-                                         batch_size=64,
-                                         shuffle=True,
-                                         num_workers=2)
 classes = list(lesion_type_dict.keys())
 
 
@@ -127,7 +125,8 @@ def train(epoch, model):
     iteration = 0
     # criterion.weight = torch.from_numpy(trainset.weights)\
     # .to('cuda').type(torch.float)
-    for batch_idx, (data, label) in enumerate(trainloader):
+    # t = tqdm(total=len(trainloader))
+    for batch_idx, (data, label) in enumerate(tqdm(trainloader)):
         data, label = torch.autograd.Variable(
             data.cuda()), torch.autograd.Variable(label.cuda())
         optimizer.zero_grad()
@@ -148,6 +147,7 @@ def train(epoch, model):
                             y_pred=y_pred.cpu().numpy(),
                             average='micro')
         iteration += 1
+        # t.update(batch_idx)
     acc = 100. * corrects / len(trainloader.dataset)
     f1 = f1/iteration
     prec = prec/iteration
@@ -157,6 +157,7 @@ def train(epoch, model):
     print(
         f"\tTraining accuracy = {acc:.2f}%; F1 = {100.*f1:.2f}%;\
             Precision = {100.*prec:.2f}%; Recall = {100.*rec:.2f}%\n")
+    # t.close()
 
 
 def test(epoch, model):
@@ -172,7 +173,8 @@ def test(epoch, model):
     corrects = 0.0
     # criterion.weight = torch.from_numpy(testset.weights)\
     # .to('cuda').type(torch.float)
-    for batch_id, (data, label) in enumerate(testloader):
+    # t = tqdm(total=len(testloader))
+    for batch_id, (data, label) in enumerate(tqdm(testloader)):
         with torch.no_grad():
             data, label = torch.autograd.Variable(
                 data).cuda(), torch.autograd.Variable(label).cuda()
@@ -193,6 +195,7 @@ def test(epoch, model):
                                 y_pred=y_pred.cpu().numpy(),
                                 average='micro')
         iteration += 1
+        # t.update(batch_id)
     acc = 100. * corrects / len(testloader.dataset)
     f1 = f1/iteration
     prec = prec/iteration
@@ -207,10 +210,11 @@ def test(epoch, model):
             Recall = {100.*rec:.2f}% \n\tLoss: {testloss:1.2e}\n")
     test_losses.append(loss.data.item())
     test_accs.append(acc)
+    # t.close()
 
 
 def adjust_learning_rate(optimizer, epoch):
-    update_list = [i for i in range(0, 150, 10)]
+    update_list = [80, 160]
     if epoch in update_list:
         for param_group in optimizer.param_groups:
             param_group['lr'] = max(param_group['lr'] * 0.1, 1e-8)
@@ -218,7 +222,7 @@ def adjust_learning_rate(optimizer, epoch):
 
 
 def save_state(model, best_acc):
-    print('\n==> Saving model ...')
+    print('\n==> Saving model ...\n')
     state = {'best_acc': best_acc,
              'state_dict': model.state_dict()}
     keys = list(state['state_dict'].keys())
@@ -232,3 +236,34 @@ def save_state(model, best_acc):
 def get_lr(optimizer=optimizer):
     for param_group in optimizer.param_groups:
         return param_group['lr']
+
+
+# t = tqdm(total=300)
+for epoch in tqdm(range(300)):
+    lr = get_lr()
+    # adjust_learning_rate(optimizer, epoch)
+    print(f" Epoch: {epoch}, learning rate = {lr:1.2e};\n")
+
+    train(epoch, model_harmonic)
+
+    test(epoch, model_harmonic)
+    gc.collect()
+    # t.update(epoch)
+# t.close()
+
+plt.figure(figsize=(12, 8))
+plt.plot(test_losses, label="Test Loss")
+plt.plot(train_losses, label="Train Loss")
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.title(f"Train/Test losses.")
+plt.legend()
+plt.savefig('train_test_losses')
+plt.figure(figsize=(12, 8))
+plt.plot(test_accs, label="Test")
+plt.plot(train_accs, label="Train")
+plt.xlabel("Epoch")
+plt.ylabel("Accuracy")
+plt.title(f"Train/Test accuracies.")
+plt.legend()
+plt.savefig('train_test_accuracies')

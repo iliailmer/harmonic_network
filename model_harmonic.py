@@ -110,7 +110,7 @@ class HarmonicNet(nn.Module):
         self.flatten = Flatten()
         self.linear1 = nn.Linear(128*shape_pool[0]*shape_pool[1], 1024)
         self.linear2 = nn.Linear(1024, 128)
-        self.linear3 = nn.Linear(128, 10)
+        self.linear3 = nn.Linear(128, 7)
         self.dropout = nn.Dropout(0.5)
         self.activation = nn.ReLU()
         self.softmax = nn.LogSoftmax()
@@ -154,6 +154,6 @@ class HarmonicNet(nn.Module):
         # x = (self.tanh(x) + 1)/2
         # x = self.softmax(x)
         # x = torch.clamp(self.sigmoid(x)**(0.99), 0, 1)
-        x = x.view(-1, 10)
+        x = x.view(-1, 7)
 
         return x

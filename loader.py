@@ -47,7 +47,7 @@ class Loader(Dataset):
                                 rescale(
                                     io.imread(
                                         self.path[name]).astype('float32'))),
-                            (64, 64),  # (150,150)
+                            (64, 64), anti_aliasing=True,  # (150,150)
                             mode='reflect')) for name in self.train_names])
             else:
                 self.train_data = np.asarray([
@@ -55,7 +55,7 @@ class Loader(Dataset):
                         resize(
                             rescale(
                                 io.imread(self.path[name]).astype('float32')),
-                            (64, 64),
+                            (64, 64), anti_aliasing=True,
                             mode='reflect')) for name in self.train_names])
             self.train_labels = torch.from_numpy(self.train_labels)
         else:
@@ -72,7 +72,7 @@ class Loader(Dataset):
                                 rescale(
                                     io.imread(
                                         self.path[name]).astype('float32'))),
-                            (64, 64),
+                            (64, 64), anti_aliasing=True,
                             mode='reflect')) for name in self.test_names])
             else:
                 self.test_data = np.asarray([
@@ -80,7 +80,7 @@ class Loader(Dataset):
                         resize(
                             rescale(
                                 io.imread(self.path[name]).astype('float32')),
-                            (64, 64),
+                            (64, 64), anti_aliasing=True,
                             mode='reflect')) for name in self.test_names])
             self.test_labels = torch.from_numpy(self.test_labels)
 
