@@ -9,7 +9,7 @@ from torch import nn
 import torch.optim as optim
 from sklearn.preprocessing import LabelEncoder
 import gc
-from typing import List
+from typing import List  # pylint: ignore
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from albumentations.augmentations.transforms import RandomRotate90
@@ -47,23 +47,21 @@ testset = Loader(imageid_path_dict, labels, train=False, transform=tfms)
 
 train_sampler = torch.utils\
     .data.WeightedRandomSampler(trainset.weights[trainset.train_labels],
-                                len(
-        trainset.weights[trainset.train_labels]),
-        True)
+                                len(trainset.weights[trainset.train_labels]),
+                                True)
 test_sampler = torch.utils\
     .data.WeightedRandomSampler(testset.weights[testset.test_labels],
-                                len(
-        testset.weights[testset.test_labels]),
-        True)
+                                len(testset.weights[testset.test_labels]),
+                                True)
 
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=50,
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=32,
                                           sampler=train_sampler,
                                           shuffle=False,
-                                          num_workers=0)
-testloader = torch.utils.data.DataLoader(testset, batch_size=50,
+                                          num_workers=1)
+testloader = torch.utils.data.DataLoader(testset, batch_size=32,
                                          sampler=test_sampler,
                                          shuffle=False,
-                                         num_workers=0)
+                                         num_workers=1)
 gc.collect()
 
 model_harmonic = HarmonicNet(3, 32, 4, 1, 1, (64, 64))

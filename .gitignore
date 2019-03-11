@@ -1,5 +1,7 @@
 .mypy_cache
 .idea
-HAM10000_images
+HAM10000_*
 metadata
 __pycache__
+*.tar
+plots
