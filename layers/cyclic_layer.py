@@ -41,3 +41,43 @@ class Cyclic(nn.Module):
         x = F.conv2d(x.to(torch.float32), weight=self.weights.to(
             torch.float32), padding=self.pad, stride=self.stride)
         return x
+
+
+class DeCyclic(nn.Module):
+    def __init__(self, input_channels, output_ch, bn=False,
+                 kernel_size=5, pad=0, stride=1):
+        super(DeCyclic, self).__init__()
+
+        self.bn = bn
+        self.input_channels = input_channels
+        self.output_ch = output_ch
+        self.pad = pad
+        self.stride = stride
+        self.K = kernel_size
+        self.conv = nn.Conv2d(in_channels=self.K**2,
+                              out_channels=self.output_ch,
+                              kernel_size=1,
+                              padding=0,
+                              stride=1)
+        self.get_weights()
+        if self.bn:
+            self.bnorm = nn.BatchNorm2d(self.K**2)
+
+    def get_weights(self):
+        self.weights = np.random.randn(1, self.input_channels//4,
+                                       self.K, self.K)
+        self.weights = torch.as_tensor(self.weights)
+        self.weights = torch.stack(
+            [weight_rotate(self.weights,
+                           i) for i in range(4)],
+            dim=1).view((1,
+                         -1,
+                         self.K,
+                         self.K))
+        self.weights.requires_grad = True
+        return self.weights
+
+    def forward(self, x):
+        x = F.conv2d(x.to(torch.float32), weight=self.weights.to(
+            torch.float32), padding=self.pad, stride=self.stride)
+        return x

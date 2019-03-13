@@ -69,3 +69,10 @@ def alpha_rooting_fourier(image: np.ndarray, alpha: float = 0.9) -> np.array:
                                                where=np.absolute(ffted) != 0))
     iffted = rescale(np.absolute(iffted), 0, 1)  # .astype(int)
     return iffted
+
+
+def calc_output_shape(in_shape, kernel, stride, pad):
+    w, h = in_shape
+    w_ = (w - kernel + 2 * pad)/stride + 1
+    h_ = (h - kernel + 2 * pad)/stride + 1
+    return int(w_), int(h_)

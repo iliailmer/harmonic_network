@@ -1,5 +1,4 @@
-.mypy_cache
-.idea
+.*
 HAM10000_*
 metadata
 __pycache__
