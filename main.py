@@ -2,7 +2,7 @@ from sklearn.metrics import f1_score, precision_score, recall_score
 # , classification_report, confusion_matrix
 from model_harmonic import HarmonicNet
 # from local_loader import LocalLoader
-from loader import Loader
+from loader import LoaderSmall
 import pandas as pd
 import torch
 from torch import nn
@@ -12,11 +12,11 @@ import gc
 from typing import List  # pylint: ignore
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from albumentations.augmentations.transforms import RandomRotate90
+from albumentations.augmentations.transforms import RandomRotate90, Rotate
 from albumentations import Compose
 
 
-tfms = Compose([RandomRotate90(p=0.5)], p=1.)
+tfms = None  # Compose(transforms=[RandomRotate90(p=0.4), Rotate(p=0.5)])
 
 lesion_type_dict = {
     'nv': 'Melanocytic nevi',
@@ -40,10 +40,10 @@ metadata['localization'] = enc.fit_transform(metadata['localization'])
 metadata['lesion_id'] = enc.fit_transform(metadata['lesion_id'])
 labels = metadata.dx.values
 
-imageid_path_dict = {x: f'HAM10000_images/{x}.jpg' for x in metadata.image_id}
+imageid_path_dict = {x: f'HAM10000_small/{x}.jpg' for x in metadata.image_id}
 print("Loading data...\n")
-trainset = Loader(imageid_path_dict, labels, train=True, transform=tfms)
-testset = Loader(imageid_path_dict, labels, train=False, transform=tfms)
+trainset = LoaderSmall(imageid_path_dict, labels, train=True, transform=tfms)
+testset = LoaderSmall(imageid_path_dict, labels, train=False, transform=tfms)
 
 train_sampler = torch.utils\
     .data.WeightedRandomSampler(trainset.weights[trainset.train_labels],
@@ -95,7 +95,7 @@ criterion = nn.BCEWithLogitsLoss()
 optimizer = optim.Adam(model_harmonic.parameters(),
                        # eps=1e-5,
                        lr=base_lr,
-                       weight_decay=0.)
+                       weight_decay=0.0001)
 
 best_acc = 0
 
@@ -153,7 +153,7 @@ def train(epoch, model):
     train_losses.append(loss.data.item())
     train_accs.append(acc)
     print(
-        f"\tTraining accuracy = {acc:.2f}%; F1 = {100.*f1:.2f}%;\
+        f"\nTraining accuracy = {acc:.2f}%; F1 = {100.*f1:.2f}%;\
             Precision = {100.*prec:.2f}%; Recall = {100.*rec:.2f}%\n")
     # t.close()
 
@@ -203,7 +203,7 @@ def test(epoch, model):
         best_acc = acc
         save_state(model, best_acc)
     print(
-        f"\tTesting accuracy = {acc:.2f}%; F1 = {100.*f1:.2f}%; \
+        f"\nTesting accuracy = {acc:.2f}%; F1 = {100.*f1:.2f}%; \
             Precision = {100.*prec:.2f}%;\
             Recall = {100.*rec:.2f}% \n\tLoss: {testloss:1.2e}\n")
     test_losses.append(loss.data.item())
@@ -237,7 +237,7 @@ def get_lr(optimizer=optimizer):
 
 
 # t = tqdm(total=300)
-for epoch in tqdm(range(300)):
+for epoch in tqdm(range(100)):
     lr = get_lr()
     # adjust_learning_rate(optimizer, epoch)
     print(f" Epoch: {epoch}, learning rate = {lr:1.2e};\n")
@@ -246,6 +246,7 @@ for epoch in tqdm(range(300)):
 
     test(epoch, model_harmonic)
     gc.collect()
+
     # t.update(epoch)
 # t.close()
 

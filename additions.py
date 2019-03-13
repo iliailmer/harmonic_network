@@ -13,6 +13,21 @@ def rescale_torch(image: Tensor) -> Tensor:
     return (255*(image-image.min())/(image.max()-image.min())).type(uint8)
 
 
+def rot90(matrix: Tensor) -> Tensor:
+    return matrix.transpose(-2, -1).flip(2)
+
+
+def weight_rotate(weight: Tensor, rot: int = 0) -> Tensor:
+    if rot % 4 == 0:
+        return weight
+    if rot % 4 == 1:
+        return rot90(weight)
+    if rot % 4 == 2:
+        return rot90(rot90(weight))
+    if rot % 4 == 3:
+        return rot90(rot90(rot90(weight)))
+
+
 def edges(image: np.ndarray,
           size: int = 3) -> np.ndarray:
     image = rescale(image)
