@@ -14,7 +14,8 @@ def rescale_torch(image: Tensor) -> Tensor:
 
 
 def rot90(matrix: Tensor) -> Tensor:
-    return matrix.transpose(-2, -1).flip(2)
+    dims = range(len(matrix.shape))
+    return matrix.transpose(dims[-2], dims[-1]).flip(2)
 
 
 def weight_rotate(weight: Tensor, rot: int = 0) -> Tensor:

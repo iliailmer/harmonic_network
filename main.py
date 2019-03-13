@@ -1,6 +1,6 @@
 from sklearn.metrics import f1_score, precision_score, recall_score
 # , classification_report, confusion_matrix
-from model_harmonic import HarmonicNet
+from models.model_harmonic import HarmonicNet
 # from local_loader import LocalLoader
 from loader import LoaderSmall
 import pandas as pd
@@ -12,9 +12,9 @@ import gc
 from typing import List  # pylint: ignore
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from albumentations.augmentations.transforms import RandomRotate90, Rotate
-from albumentations import Compose
 
+
+torch.random.manual_seed(42)
 
 tfms = None  # Compose(transforms=[RandomRotate90(p=0.4), Rotate(p=0.5)])
 
@@ -95,7 +95,7 @@ criterion = nn.BCEWithLogitsLoss()
 optimizer = optim.Adam(model_harmonic.parameters(),
                        # eps=1e-5,
                        lr=base_lr,
-                       weight_decay=0.0001)
+                       weight_decay=0.)
 
 best_acc = 0
 
@@ -237,7 +237,7 @@ def get_lr(optimizer=optimizer):
 
 
 # t = tqdm(total=300)
-for epoch in tqdm(range(100)):
+for epoch in range(100):
     lr = get_lr()
     # adjust_learning_rate(optimizer, epoch)
     print(f" Epoch: {epoch}, learning rate = {lr:1.2e};\n")

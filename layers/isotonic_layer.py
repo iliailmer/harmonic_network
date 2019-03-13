@@ -29,12 +29,28 @@ class Isotonic(nn.Module):
         self.weights = np.random.randn(4, self.input_channels,
                                        self.K, self.K)
         self.weights = torch.as_tensor(self.weights)
-        self.weights = torch.stack(
-            [weight_rotate(self.weights,
-                           i) for i in range(4)]).view((-1,
-                                                        self.input_channels,
-                                                        self.K, self.K))
-        
+        w0 = self.weights[0]
+        w1 = self.weights[1]
+        w2 = self.weights[2]
+        w3 = self.weights[3]
+        print(type(w0))
+        self.weights = torch.stack([torch.stack([w0, w1, w2, w3]),
+                                    torch.stack([weight_rotate(w3, 1),
+                                                 weight_rotate(w0, 1),
+                                                 weight_rotate(w1, 1),
+                                                 weight_rotate(w2, 1)]),
+                                    torch.stack([weight_rotate(w2, 2),
+                                                 weight_rotate(w3, 2),
+                                                 weight_rotate(w0, 2),
+                                                 weight_rotate(w1, 2)]),
+                                    torch.stack([weight_rotate(w1, 3),
+                                                 weight_rotate(w2, 3),
+                                                 weight_rotate(w3, 3),
+                                                 weight_rotate(w0, 3)])]).view(
+            (-1,
+             self.input_channels,
+             self.K,
+             self.K))
         self.weights.requires_grad = True
         return self.weights
 

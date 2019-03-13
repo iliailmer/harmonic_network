@@ -1,6 +1,6 @@
-from harmonic_block import HarmonicBlock
+from layers.harmonic_block import HarmonicBlock
 import torch.nn as nn
-from flatten import Flatten
+from layers.flatten import Flatten
 from torch import Tensor, float32
 
 

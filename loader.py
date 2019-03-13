@@ -27,7 +27,7 @@ class Loader(Dataset):
             self.train_labels,  self.test_labels = train_test_split(
                 np.asarray(data),
                 np.asarray(labels),
-                test_size=0.15)
+                test_size=0.2)
         self.color_transform_dict = {
             'rgb': color.rgb2rgbcie,
             'hed': color.rgb2hed,
