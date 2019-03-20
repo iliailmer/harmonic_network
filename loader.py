@@ -1,3 +1,4 @@
+from skimage.feature import local_binary_pattern
 from sklearn.model_selection import train_test_split
 from skimage import io
 from skimage.util import img_as_float32
@@ -12,7 +13,7 @@ from torchvision.transforms import ToTensor
 
 
 class Loader(Dataset):
-    def __init__(self,  image_path_dict, labels, image_name=None,
+    def __init__(self, image_path_dict, labels, image_name=None,
                  train=True, transform=None, color_space='rgb'):
         """
         Args:
@@ -24,10 +25,10 @@ class Loader(Dataset):
         # self.name = image_name
         self.transform = transform  # augmentation transforms
         self.train_names, self.test_names, \
-            self.train_labels,  self.test_labels = train_test_split(
-                np.asarray(data),
-                np.asarray(labels),
-                test_size=0.2)
+        self.train_labels, self.test_labels = train_test_split(
+            np.asarray(data),
+            np.asarray(labels),
+            test_size=0.2)
         self.color_transform_dict = {
             'rgb': color.rgb2rgbcie,
             'hed': color.rgb2hed,
@@ -47,7 +48,7 @@ class Loader(Dataset):
                                 rescale(
                                     io.imread(
                                         self.path[name])
-                                    .astype('float32'))),
+                                        .astype('float32'))),
                             (64, 64), anti_aliasing=True,  # (150,150)
                             mode='reflect')) for name in self.train_names])
             else:
@@ -56,10 +57,11 @@ class Loader(Dataset):
                         resize(
                             rescale(
                                 io.imread(self.path[name])
-                                .astype('float32')),
+                                    .astype('float32')),
                             (64, 64), anti_aliasing=True,
                             mode='reflect')) for name in self.train_names])
             self.train_labels = torch.from_numpy(self.train_labels)
+
         else:
             self.weights = class_weight.compute_class_weight(
                 'balanced',
@@ -74,7 +76,7 @@ class Loader(Dataset):
                                 rescale(
                                     io.imread(
                                         self.path[name])
-                                    .astype('float32'))),
+                                        .astype('float32'))),
                             (64, 64), anti_aliasing=True,
                             mode='reflect')) for name in self.test_names])
             else:
@@ -82,7 +84,7 @@ class Loader(Dataset):
                     rescale(
                         resize(rescale(
                             io.imread(self.path[name])
-                            .astype('float32')),
+                                .astype('float32')),
                             (64, 64), anti_aliasing=True,
                             mode='reflect')) for name in self.test_names])
             self.test_labels = torch.from_numpy(self.test_labels)
@@ -109,7 +111,7 @@ class Loader(Dataset):
 
 
 class LoaderSmall(Dataset):
-    def __init__(self,  image_path_dict, labels, image_name=None,
+    def __init__(self, image_path_dict, labels, image_name=None,
                  train=True, transform=None, color_space='rgb'):
         """
         Args:
@@ -121,14 +123,17 @@ class LoaderSmall(Dataset):
         # self.name = image_name
         self.transform = transform  # augmentation transforms
         self.train_names, self.test_names, \
-            self.train_labels,  self.test_labels = train_test_split(
-                np.asarray(data),
-                np.asarray(labels),
-                test_size=0.15)
+        self.train_labels, self.test_labels = train_test_split(
+            np.asarray(data),
+            np.asarray(labels),
+            test_size=0.15)
         self.color_transform_dict = {
             'rgb': color.rgb2rgbcie,
             'hed': color.rgb2hed,
-            'hsv': color.rgb2hsv, None: None}
+            'hsv': color.rgb2hsv,
+            'lab': color.rgb2lab,
+            'lbp': self.rgb_lbp,
+            None: None}
 
         if self.train:
             self.weights = class_weight.compute_class_weight(
@@ -146,6 +151,8 @@ class LoaderSmall(Dataset):
                     img_as_float32(io.imread(
                         self.path[name])) for name in self.train_names])
             self.train_labels = torch.from_numpy(self.train_labels)
+            # self.train_data = (self.train_data-self.train_data.mean())/self.train_data.std()
+
         else:
             self.weights = class_weight.compute_class_weight(
                 'balanced',
@@ -162,12 +169,20 @@ class LoaderSmall(Dataset):
                     img_as_float32(io.imread(
                         self.path[name])) for name in self.test_names])
             self.test_labels = torch.from_numpy(self.test_labels)
+            #self.test_data = (self.test_data - self.test_data.mean()) / self.test_data.std()
 
     def __len__(self):
         if self.train:
             return len(self.train_data)
         else:
             return len(self.test_data)
+
+    def rgb_lbp(self, image, P=9, R=1):
+        result = np.zeros_like(image)
+        result[..., 0] = local_binary_pattern(image[..., 0], P=P, R=R, method='uniform')
+        result[..., 1] = local_binary_pattern(image[..., 1], P=P, R=R, method='uniform')
+        result[..., 2] = local_binary_pattern(image[..., 2], P=P, R=R, method='uniform')
+        return rescale(result)
 
     def __getitem__(self, index):
         if self.train:
