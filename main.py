@@ -1,20 +1,22 @@
+import os
+import time
 from sklearn.metrics import f1_score, precision_score, recall_score
 # , classification_report, confusion_matrix
-from torchvision.transforms import ToTensor
+# from torchvision.transforms import ToTensor
 from models.model_harmonic import WideHarmonicResNet
 # from local_loader import LocalLoader
-from loader import LoaderSmall
-import pandas as pd
+# from loader import LoaderSmall
+# import pandas as pd
 import warnings
 import torch
 from torchvision.datasets import CIFAR10
 from torch import nn
 import torch.optim as optim
-from sklearn.preprocessing import LabelEncoder
+# from sklearn.preprocessing import LabelEncoder
 import gc
 from typing import List  # pylint: ignore
 from tqdm import tqdm
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import numpy as np
 import torchvision.transforms as transforms
 
@@ -32,7 +34,8 @@ transform_train = transforms.Compose([
 
 transform_test = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+    transforms.Normalize((0.4914, 0.4822, 0.4465),
+                         (0.2023, 0.1994, 0.2010)),
 ])
 
 trainset = CIFAR10('./', download=True, train=True,
@@ -117,116 +120,69 @@ def one_hot_enc(output, target, num_classes=7):
     return labels_one_hot
 
 
-def train(epoch, model):
-    model.train()
-    corrects = 0.0
-    f1 = 0.0
-    prec = 0.0
-    rec = 0.0
-    iteration = 0
-    acc = 0.
-    for batch_idx, (data, label) in enumerate(tqdm(trainloader)):
-        data, label = torch.autograd.Variable(
-            data.cuda()), torch.autograd.Variable(label.cuda())
+# Training (https://github.com/kuangliu/pytorch-cifar/blob/master/main.py)
+def train(epoch):
+    print('\nEpoch: %d' % epoch)
+    net.train()
+    train_loss = 0
+    correct = 0
+    total = 0
+    for batch_idx, (inputs, targets) in enumerate(tqdm(trainloader)):
+        inputs, targets = inputs.to('cuda'), targets.to('cuda')
         optimizer.zero_grad()
-        output = model(data)
-        # label_ = one_hot_enc(output, label, 10)
-        loss = criterion(output, label)
-        y_pred = torch.max(output, 1)[1]
+        outputs = net(inputs)
+        loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
-        corrects += y_pred.eq(label.data).cpu().sum()
-        f1 += f1_score(y_true=label.data.cpu().numpy(),
-                       y_pred=y_pred.cpu().numpy(),
-                       average='weighted')
-        prec += precision_score(y_true=label.data.cpu().numpy(),
-                                y_pred=y_pred.cpu().numpy(),
-                                average='weighted')
-        rec += recall_score(y_true=label.data.cpu().numpy(),
-                            y_pred=y_pred.cpu().numpy(),
-                            average='weighted')
-        iteration += 1
-        # t.update(batch_idx)
-    acc = 100. * corrects / len(trainloader.dataset)
-    f1 = f1 / iteration
-    prec = prec / iteration
-    rec = rec / iteration
-    train_losses.append(loss.data.item())
-    train_accs.append(acc)
-    train_precisions.append(100. * rec)
-    train_recall.append(100. * rec)
-    train_f1.append(100. * f1)
-    print(f"\nTraining accuracy = {acc:.2f}%;\n\
-             F1 = {100. * f1:.2f}%;\
-             Precision = {100. * prec:.2f}%;\
-             Recall = {100. * rec:.2f}%\
-             Loss: {loss.data.item():1.2e}\n")
 
-    # t.close()
-
-
-def test(epoch, model):
-    global best_acc
-    model.eval()
-    # w = testloader.dataset.weights
-    acc = 0.0
-    f1 = 0.0
-    prec = 0.0
-    rec = 0.0
-    iteration = 0
-    testloss = 0.0
-    corrects = 0.0
-    # criterion.weight = torch.from_numpy(testset.weights)\
-    # .to('cuda').type(torch.float)
-    # t = tqdm(total=len(testloader))
-    for batch_id, (data, label) in enumerate(tqdm(testloader)):
-        with torch.no_grad():
-            data, label = torch.autograd.Variable(
-                data).cuda(), torch.autograd.Variable(label).cuda()
-            output = model(data)
-            # one_hot_enc(output, label) # one hot encoding for loss function
-            # label_ = one_hot_enc(output, label, 10)
-            loss = criterion(output, label)
-            y_pred = torch.max(output, 1)[1]
-            corrects += y_pred.eq(label.data).cpu().sum()
-            testloss += loss
-            f1 += f1_score(y_true=label.data.cpu().numpy(),
-                           y_pred=y_pred.cpu().numpy(),
-                           average='weighted')
-            prec += precision_score(y_true=label.data.cpu().numpy(),
-                                    y_pred=y_pred.cpu().numpy(),
-                                    average='weighted')
-            rec += recall_score(y_true=label.data.cpu().numpy(),
-                                y_pred=y_pred.cpu().numpy(),
-                                average='weighted')
-        iteration += 1
-        # t.update(batch_id)
-    acc = 100. * corrects / len(testloader.dataset)
-    f1 = f1 / iteration
-    prec = prec / iteration
-    rec = rec / iteration
-    testloss /= len(testloader.dataset)
-    if best_acc < acc.item():
-        best_acc = acc
-        save_state(model, best_acc)
+        train_loss += loss.item()
+        _, predicted = outputs.max(1)
+        total += targets.size(0)
+        correct += predicted.eq(targets).sum().item()
     print(
-        f"\nTesting accuracy = {acc:.2f}%; \n \
-            F1 = {100. * f1:.2f}%; \
-            Precision = {100. * prec:.2f}%;\
-            Recall = {100. * rec:.2f}% \
-            Loss: {loss.data.item():1.2e}\n")
-    test_losses.append(loss.data.item())
-    test_accs.append(acc)
-    test_precisions.append(100. * rec)
-    test_recall.append(100. * rec)
-    test_f1.append(100. * f1)
-    # t.close()
+        'Loss: %.3f | Acc: %.3f%% (%d/%d)' % (train_loss / (len(trainloader)), 100. * correct / total, correct, total))
+
+
+def test(epoch):
+    global best_acc
+    net.eval()
+    test_loss = 0
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for batch_idx, (inputs, targets) in enumerate(tqdm(testloader)):
+            inputs, targets = inputs.to('cuda'), targets.to('cuda')
+            outputs = net(inputs)
+            loss = criterion(outputs, targets)
+
+            test_loss += loss.item()
+            _, predicted = outputs.max(1)
+
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
+        print('Loss: %.3f | Acc: %.3f%% (%d/%d)' % (
+            test_loss / (len(testloader)), 100. * correct / total, correct, total))
+
+    # Save checkpoint.
+    acc = 100. * correct / total
+    if acc > best_acc:
+        print('Saving..')
+        state = {
+            'net': net.state_dict(),
+            'acc': acc,
+            'epoch': epoch,
+        }
+        if not os.path.isdir(f'checkpoint_cifar10_{time.strftime("%Y_%m_%d")}'):
+            os.mkdir(f'checkpoint_cifar10_{time.strftime("%Y_%m_%d")}')
+        torch.save(state,
+                   f'./checkpoint_cifar10_{time.strftime("%Y_%m_%d")}/ckpt_{time.strftime("%H_%M_%S")}_{acc:.2f}.t7')
+        best_acc = acc
 
 
 def adjust_learning_rate(optimizer,
                          epoch,
-                         update_list=[25, 75],
-                         factor=10,
+                         update_list=(25, 75),
+                         factor=10.,
                          lim=1.):
     # [60, 120, 160]  #[2,5,8,11,14,17,20]
     if epoch in update_list:
@@ -257,9 +213,7 @@ for epoch in range(200):
     adjust_learning_rate(optimizer, epoch, [60, 120, 160], factor=0.2, lim=1e-4)
     lr = get_lr()
     print(f" Epoch: {epoch}, learning rate = {lr:1.1e};\n")
-    train(epoch, net)
-    test(epoch, net)
+    train(epoch)
+    test(epoch)
     gc.collect()
-    if np.nan in test_losses or np.nan in train_losses:
-        break
     torch.cuda.empty_cache()

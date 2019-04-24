@@ -1,7 +1,8 @@
 from layers.harmonic_block import HarmonicBlock
 import torch.nn as nn
-from layers.flatten import Flatten
-from torch import Tensor, float32
+# from layers.flatten import Flatten
+# from torch import Tensor, float32
+import torch.nn.functional as F
 
 
 class WideHarmonicResNet(nn.Module):
