@@ -1,5 +1,6 @@
 .*
 HAM10000_*
+cifar*
 metadata
 __pycache__
 *.tar
