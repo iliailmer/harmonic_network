@@ -18,7 +18,7 @@ class WideHarmonicResNet(nn.Module):
                                    kernel_size=3,
                                    stride=1,
                                    pad=1, bias=False)
-        self.drop = nn.Dropout(0.5)
+        self.drop = nn.Dropout(0.1)
 
         self.stack1 = self._make_layer(block,
                                        nb_layers=n,
@@ -57,6 +57,7 @@ class WideHarmonicResNet(nn.Module):
                                   kernel_size=kernel_size,
                                   stride=st,
                                   pad=pad))
+            #stacking.append(nn.Dropout(0.5))
             if in_planes != out_planes:
                 in_planes = out_planes
         return nn.Sequential(*stacking)

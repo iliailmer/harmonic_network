@@ -19,10 +19,20 @@ from tqdm import tqdm
 # import matplotlib.pyplot as plt
 import numpy as np
 import torchvision.transforms as transforms
-
+import random
 warnings.filterwarnings('ignore')
 
-torch.random.manual_seed(42)
+
+def seed_everything(seed):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+
+
+seed_everything(42)
 
 transform_train = transforms.Compose([
     transforms.RandomCrop(32, padding=4),
@@ -67,11 +77,11 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=100,
                                          num_workers=0)
 gc.collect()
 
-net = WideHarmonicResNet(3, 28, widen_factor=10)
+net = WideHarmonicResNet(3, 28, widen_factor=3)
 
 for module in net.modules():
     if isinstance(module, nn.Conv2d):
-        module.weight.data.normal_(0, 0.05)
+        module.weight.data.kaiming_normal_(0, 0.05)
         if module.bias is not None:
             module.bias.data.zero_()
 
@@ -129,8 +139,9 @@ def train(epoch):
     total = 0
     for batch_idx, (inputs, targets) in enumerate(tqdm(trainloader)):
         inputs, targets = inputs.to('cuda'), targets.to('cuda')
-        optimizer.zero_grad()
         outputs = net(inputs)
+
+        optimizer.zero_grad()
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
@@ -187,7 +198,7 @@ def adjust_learning_rate(optimizer,
     # [60, 120, 160]  #[2,5,8,11,14,17,20]
     if epoch in update_list:
         for param_group in optimizer.param_groups:
-            param_group['lr'] = min(param_group['lr'] * factor, lim)
+            param_group['lr'] = max(param_group['lr'] * factor, lim)
     return
 
 
@@ -210,9 +221,9 @@ def get_lr(optimizer=optimizer):
 
 # t = tqdm(total=300)
 for epoch in range(200):
-    adjust_learning_rate(optimizer, epoch, [60, 120, 160], factor=0.2, lim=1e-4)
+    adjust_learning_rate(optimizer, epoch, [60, 120, 160], factor=0.2, lim=1e-6)
     lr = get_lr()
-    print(f" Epoch: {epoch}, learning rate = {lr:1.1e};\n")
+    print(f"Epoch: {epoch}, learning rate = {lr:1.1e};")
     train(epoch)
     test(epoch)
     gc.collect()
