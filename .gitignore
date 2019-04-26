@@ -1,4 +1,4 @@
-.*/
+.*/tr
 HAM10000_*
 cifar*
 metadata
@@ -6,3 +6,4 @@ __pycache__
 *.tar
 plots
 *.ipynb
+*.png
