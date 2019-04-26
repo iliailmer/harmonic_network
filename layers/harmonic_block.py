@@ -45,11 +45,22 @@ class HarmonicBlock(nn.Module):
                                                 K=self.K,  # kernel size
                                                 input_channels=self.input_channels,
                                                 lmbda=self.lmbda,
-                                                diag=self.diag).to('cuda')
+                                                diag=self.diag).float().cuda()
         self.conv = nn.Conv2d(in_channels=self.filter_bank.shape[0], out_channels=self.output_ch,
                               kernel_size=1,
                               padding=0,
                               stride=1, bias=bias)
+        if stride != 2 or input_channels != output_ch:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(input_channels,
+                          output_ch,
+                          kernel_size=1,
+                          stride=stride,
+                          bias=False),
+                nn.BatchNorm2d(output_ch)
+            )
+        else:
+            self.shortcut = nn.Sequential()
 
         if self.bn:
             self.bnorm = nn.BatchNorm2d(self.filter_bank.shape[0])
@@ -91,26 +102,30 @@ class HarmonicBlock(nn.Module):
                 filter_bank[i, j, :, :] = self.fltr(i, j, N, K)
         if lmbda is not None:
             ids = self.get_idx(K, lmbda)
-            return torch.stack(tuple([filter_bank.view(-1, 1, K, K)] * input_channels), dim=1).view(
-                (-1, input_channels, K, K))[ids, :, :, :].view(-1, 1, K, K)  # filter_bank.view(K**2,-1,K,K)
+            return torch.stack(tuple([filter_bank.view(-1, 1, K, K)[ids, :, :, :]] * input_channels), dim=0).view(
+                (-1, 1, K, K))
         if diag:
             ids = self.get_idx_diag(K)
-            return torch.stack(tuple([filter_bank.view(-1, 1, K, K)] * input_channels), dim=1).view(
-                (-1, input_channels, K, K))[ids, :, :, :].view(-1, 1, K, K)  # filter_bank.view(K**2,-1,K,K)[ids,:,:,:]
-        return torch.stack(tuple([filter_bank.view(-1, 1, K, K)] * input_channels), dim=1).view(
+            return torch.stack(tuple([filter_bank.view(-1, 1, K, K)[ids, :, :, :]] * input_channels), dim=0).view(
+                (-1, 1, K, K))
+        return torch.stack(tuple([filter_bank.view(-1, 1, K, K)] * input_channels), dim=0).view(
             (-1, 1, K, K))
 
     def forward(self, x):
-        x = F.conv2d(x.to(torch.float32),
-                     weight=self.filter_bank.to(torch.float32),
+        in_=x
+        x = F.conv2d(x.float(),
+                     weight=self.filter_bank,
                      padding=self.pad,
                      stride=self.stride,
                      groups=self.input_channels)  # int(self.K/2)
         if self.bn:
-            x = self.bnorm(x)
+            x = F.relu(self.bnorm(x))
+        else:
+            x = F.relu(x)
         if self.drop:
             x = self.dropout(x)
-        x = self.conv(x)
+        x = self.conv(x) + self.shortcut(in_)
+        x = F.relu(x)
         return x
 
 
