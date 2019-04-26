@@ -1,4 +1,5 @@
-.*/tr
+.mypy_cache
+.vscode
 HAM10000_*
 cifar*
 metadata
