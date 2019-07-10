@@ -20,6 +20,7 @@ from tqdm import tqdm
 import numpy as np
 import torchvision.transforms as transforms
 import random
+<<<<<<< HEAD
 import argparse
 import matplotlib
 from matplotlib import pyplot as plt
@@ -67,6 +68,10 @@ archs = {'wrn': WideOrthoResNet,
 assert args.arch in list(archs.keys()), "Unexpected acrh name, expected one of {}, got {}".format(list(archs.keys()),
                                                                                                   args.arch)
 
+=======
+warnings.filterwarnings('ignore')
+
+>>>>>>> 634d9cdada12ca034099b71d6aa87a0a9f9d0fc9
 
 def seed_everything(seed):
     random.seed(seed)
@@ -79,6 +84,7 @@ def seed_everything(seed):
 
 seed_everything(42)
 
+<<<<<<< HEAD
 weights = None
 
 if args.dataset not in ['cifar10', 'cifar100', 'imagenet', 'isic2019']:
@@ -349,6 +355,58 @@ elif args.dataset == 'cifar100':
                        lmbda=args.lam,
                        diag=args.diag)
 gc.collect()
+=======
+transform_train = transforms.Compose([
+    transforms.RandomCrop(32, padding=4),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize((0.4914, 0.4822, 0.4465),
+                         (0.2023, 0.1994, 0.2010)),
+])
+
+transform_test = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.4914, 0.4822, 0.4465),
+                         (0.2023, 0.1994, 0.2010)),
+])
+
+trainset = CIFAR10('./', download=True, train=True,
+                   transform=transform_train)  # LoaderSmall(imageid_path_dict, labels, train=True, transform=tfms, color_space=None)
+# LoaderSmall(imageid_path_dict, labels, train=True, transform=tfms, color_space=None)
+# #CIFAR10('./', download=True, train=True, transform=ToTensor())#
+testset = CIFAR10('./',
+                  train=False,
+                  transform=transform_test)  # LoaderSmall(imageid_path_dict, labels, train=False, transform=tfms, color_space=None)
+# LoaderSmall(imageid_path_dict, labels, train=False, transform=tfms, color_space=None)
+# CIFAR10('./', train=False, transform=ToTensor())#
+'''
+train_sampler = torch.utils\
+    .data.WeightedRandomSampler(trainset.weights[trainset.train_labels],
+                                len(trainset.weights[trainset.train_labels]),
+                                True)
+test_sampler = torch.utils\
+    .data.WeightedRandomSampler(testset.weights[testset.test_labels],
+                                len(testset.weights[testset.test_labels]),
+                                True)
+'''
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=128,
+                                          # sampler=train_sampler,
+                                          shuffle=True,
+                                          num_workers=0)
+testloader = torch.utils.data.DataLoader(testset, batch_size=100,
+                                         # sampler=test_sampler,
+                                         shuffle=False,
+                                         num_workers=0)
+gc.collect()
+
+net = WideHarmonicResNet(3, 28, widen_factor=3)
+
+for module in net.modules():
+    if isinstance(module, nn.Conv2d):
+        module.weight.data.kaiming_normal_(0, 0.05)
+        if module.bias is not None:
+            module.bias.data.zero_()
+>>>>>>> 634d9cdada12ca034099b71d6aa87a0a9f9d0fc9
 
 print("Number of trainable parameters:", net._num_parameters()[0])
 if args.block != 'basic':
@@ -543,9 +601,22 @@ def save_state(model, best_acc):
     torch.save(state, 'harmonic_network.tar')
 
 
+<<<<<<< HEAD
 for epoch in range(start_epoch, 200):
     adjust_learning_rate(optimizer, epoch, [60, 120, 160], factor=0.2, lim=1e-6)
     lr = get_lr()
+=======
+def get_lr(optimizer=optimizer):
+    for param_group in optimizer.param_groups:
+        return param_group['lr']
+
+
+# t = tqdm(total=300)
+for epoch in range(200):
+    adjust_learning_rate(optimizer, epoch, [60, 120, 160], factor=0.2, lim=1e-6)
+    lr = get_lr()
+    print(f"Epoch: {epoch}, learning rate = {lr:1.1e};")
+>>>>>>> 634d9cdada12ca034099b71d6aa87a0a9f9d0fc9
     train(epoch)
     test(epoch)
     print(f"Best Accuracy: {best_acc:.3f}")

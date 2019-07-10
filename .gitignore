@@ -1,4 +1,5 @@
-.*
+.mypy_cache
+.vscode
 HAM10000_*
 cifar*
 metadata
@@ -11,3 +12,7 @@ checkpoint*
 *.ipynb
 *.gz
 *.zip
+*.png
+*.sh
+preprocess_seg.py
+*notebook*
