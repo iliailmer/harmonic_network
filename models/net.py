@@ -196,12 +196,7 @@ class WideOrthoResNet(nn.Module):
         stack2 = self.drop(self.stack2(stack1))
         stack3 = self.drop(self.stack3(stack2))
         bn = self.relu(self.bn1(stack3))
-        # center = self.center(bn)
-        # dec1 = self.dec1(torch.cat([center, stack2],1))
         out = F.avg_pool2d(bn, bn.shape[-1])
-        # if x.shape[-1] == 64:
-        #    out = self.fc_64(out.view(-1, self.nChannels * 4))
-        # else:
         out = self.fc(out.view(-1, self.nChannels))
         return out
 

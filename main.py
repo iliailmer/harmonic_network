@@ -1,10 +1,10 @@
 import os
 import time
-from sklearn.metrics import f1_score, precision_score, recall_score
-# , classification_report, confusion_matrix
+from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score
+from sklearn.metrics import classification_report, confusion_matrix
 from models.net import WideOrthoResNet, OrthoVGG
 from layers.blocks import BasicBlock, HadamardBlock, HarmonicBlock, SlantBlock
-from loader import LoaderSmall
+from loader import LoaderSmall, Loader
 import pandas as pd
 import warnings
 import torch
@@ -13,13 +13,12 @@ from torch import nn
 from torch.nn import functional as F
 import torch.optim as optim
 from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
 import gc
 from typing import List  # pylint: ignore
 from tqdm import tqdm
-# import matplotlib.pyplot as plt
 import numpy as np
 import torchvision.transforms as transforms
-from albumentations.augmentations import transforms as T
 import random
 import argparse
 import matplotlib
@@ -49,14 +48,15 @@ parser.add_argument('--checkpoint', type=int, default=0)
 args = parser.parse_args()
 
 folder = {'small': 'HAM10000_small',
-          'large': 'HAM10000_224'}
+          'large': 'HAM10000_224',
+          'isic':'ISIC2019/ISIC_2019_Training_Input'}
 assert args.imsize in list(folder.keys()), "Unexpected folder name, expected one of {}, got {}".format(
     list(folder.keys()),
     args.imsize)
 
 blocks = {'basic': BasicBlock,
           'hadamard': HadamardBlock,
-          'dct': HarmonicBlock,
+          'harmonic': HarmonicBlock,
           'slant': SlantBlock}
 assert args.block in list(blocks.keys()), "Unexpected block name, expected one of {}, got {}".format(
     list(blocks.keys()),
@@ -79,12 +79,11 @@ def seed_everything(seed):
 
 seed_everything(42)
 
-if args.dataset not in ['cifar10', 'cifar100', 'imagenet']:
+weights = None
+
+if args.dataset not in ['cifar10', 'cifar100', 'imagenet', 'isic2019']:
+    use_cm=True
     transform_train = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Lambda(lambda x: F.pad(x.unsqueeze(0),
-                                          (4, 4, 4, 4),
-                                          mode='reflect').squeeze()),
         transforms.ToPILImage(),
         transforms.RandomCrop(64, padding=4),
         transforms.RandomHorizontalFlip(),
@@ -93,6 +92,13 @@ if args.dataset not in ['cifar10', 'cifar100', 'imagenet']:
                              (0.2023, 0.1994, 0.2010)),
     ])
 
+    '''transforms.ToTensor(),
+    transforms.Lambda(lambda x: F.pad(x.unsqueeze(0),
+                                      (4, 4, 4, 4),
+                                      mode='reflect').squeeze()),
+    transforms.ToPILImage(),
+    transforms.RandomCrop(64, padding=4),
+    transforms.RandomHorizontalFlip(),'''
     transform_test = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize((0.4914, 0.4822, 0.4465),
@@ -110,33 +116,60 @@ if args.dataset not in ['cifar10', 'cifar100', 'imagenet']:
     imageid_path_dict = {x: f'./{folder[args.imsize]}/{x}.jpg' for x in metadata.image_id}
 
     print("Loading Images...")
-    trainset = LoaderSmall(imageid_path_dict,
-                           labels,
-                           train=True,
-                           transform=None,
-                           color_space=None)
-    testset = LoaderSmall(imageid_path_dict,
-                          labels,
-                          train=False,
-                          transform=None,
-                          color_space=None)
+    train_names, val_names, \
+    train_labels, val_labels = train_test_split(
+        np.asarray(list(imageid_path_dict.keys())),
+        labels,
+        test_size=0.15)
 
+    '''weights = class_weight.compute_class_weight(
+        'balanced',
+        np.unique(labels),
+        labels)'''
+    trainset = LoaderSmall(imageid_path_dict,
+                           labels=train_labels,
+                           names=train_names,
+                           weighting=False,
+                           transform=transform_train,
+                           color_space=None)
+
+    testset = LoaderSmall(imageid_path_dict,
+                          labels=val_labels,
+                          names=val_names,
+                          weighting=False,
+                          transform=transform_test,
+                          color_space=None)
+    #get train sampler
+    target = torch.from_numpy(train_labels)
+    class_sample_count = torch.tensor(
+        [(target == t).sum() for t in torch.unique(target, sorted=True)])
+    weight = 1. / class_sample_count.float()
+    samples_weight = torch.tensor([weight[t] for t in target])
     train_sampler = torch.utils \
-        .data.WeightedRandomSampler(trainset.weights[trainset.train_labels],
-                                    len(trainset.weights[trainset.train_labels]),
-                                    True)
-    # test_sampler = torch.utils\
-    #    .data.WeightedRandomSampler(testset.weights[testset.test_labels],
-    #                                len(testset.weights[testset.test_labels]),
-    #                                True)
+        .data.WeightedRandomSampler(samples_weight,
+                                    len(samples_weight))
+    #get test sampler
+    target = torch.from_numpy(val_labels)
+    class_sample_count = torch.tensor(
+        [(target == t).sum() for t in torch.unique(target, sorted=True)])
+    weight = 1. / class_sample_count.float()
+    samples_weight = torch.tensor([weight[t] for t in target])
+    test_sampler = torch.utils \
+        .data.WeightedRandomSampler(samples_weight,
+                                    len(samples_weight))
 
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.bs,
                                               sampler=train_sampler,
-                                              shuffle=False,
-                                              num_workers=args.bs)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=10,
-                                             shuffle=False,
-                                             num_workers=0)
+                                              num_workers=2)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=args.bs,
+                                             sampler=test_sampler,
+                                             num_workers=2)
+
+    target = torch.from_numpy(labels)
+    class_sample_count = torch.tensor(
+        [(target == t).sum() for t in torch.unique(target, sorted=True)])
+    weights = 1. / class_sample_count.float()
+
     if args.arch == 'wrn':
         net = WideOrthoResNet(in_channels=3,
                               block=blocks[args.block],
@@ -148,19 +181,85 @@ if args.dataset not in ['cifar10', 'cifar100', 'imagenet']:
                               lmbda=args.lam,
                               diag=args.diag)
     if args.arch == 'vgg':
-        net = OrthoVGG(cfg=arch.cfg,
+        net = OrthoVGG(cfg=args.cfg,
                        block=blocks[args.block],
                        in_channels=3,
                        num_classes=7,
                        lmbda=args.lam,
                        diag=args.diag)
 
+elif args.dataset == 'isic2019':
+    transform_train = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Lambda(lambda x: F.pad(x.unsqueeze(0),
+                                          [4, 4, 4, 4],
+                                          mode='reflect').squeeze()),
+        transforms.ToPILImage(),
+        transforms.RandomCrop(224, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465),
+                             (0.2023, 0.1994, 0.2010)),
+    ])
+
+    transform_test = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465),
+                             (0.2023, 0.1994, 0.2010)),
+    ])
+    print("Loading metadata...")
+    meta = pd.read_csv('ISIC2019/ISIC_2019_Training_GroundTruth.csv')
+    labels = {}
+    for x in meta.values:
+        labels[x[0]] = np.argmax(x[1:].astype(np.int))
+
+    imageid_path_dict = {x: f'./ISIC2019/ISIC_2019_Training_Input/{x}.jpg' for x in list(labels.keys())}
+    labels = np.array(list(labels.values()))
+    train_names, val_names, \
+    train_labels, val_labels = train_test_split(
+        np.asarray(list(imageid_path_dict.keys())),
+        labels,
+        test_size=0.20)
+    print("Loading Images...")
+    trainset = Loader(imageid_path_dict,
+                           names=train_names,
+                           labels=train_labels,
+                           transform=transform_train)
+    testset = Loader(imageid_path_dict,
+                          names=val_names,
+                          labels=val_labels,
+                          transform=transform_test)
+
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.bs,
+                                              shuffle=False,
+                                              num_workers=2)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=10,
+                                             shuffle=False,
+                                             num_workers=2)
+    if args.arch == 'wrn':
+        net = WideOrthoResNet(in_channels=3,
+                              block=blocks[args.block],
+                              alpha_root=args.alpha_root,
+                              kernel_size=args.kernel_size,
+                              depth=args.depth,
+                              num_classes=8,
+                              droprate=0.2,
+                              widen_factor=args.widen,
+                              lmbda=args.lam,
+                              diag=args.diag)
+    if args.arch == 'vgg':
+        net = OrthoVGG(cfg=args.cfg,
+                       block=blocks[args.block],
+                       in_channels=3,
+                       num_classes=8,
+                       lmbda=args.lam,
+                       diag=args.diag)
 
 elif args.dataset == 'cifar10':
     transform_train = transforms.Compose([
         transforms.ToTensor(),
         transforms.Lambda(lambda x: F.pad(x.unsqueeze(0),
-                                          (4, 4, 4, 4),
+                                          [4, 4, 4, 4],
                                           mode='reflect').squeeze()),
         transforms.ToPILImage(),
         transforms.RandomCrop(32, padding=4),
@@ -198,7 +297,7 @@ elif args.dataset == 'cifar10':
                               lmbda=args.lam,
                               diag=args.diag)
     if args.arch == 'vgg':
-        net = OrthoVGG(cfg=arch.cfg,
+        net = OrthoVGG(cfg=args.cfg,
                        block=blocks[args.block],
                        in_channels=3,
                        num_classes=10,
@@ -243,7 +342,7 @@ elif args.dataset == 'cifar100':
                               diag=args.diag)
 
     if args.arch == 'vgg':
-        net = OrthoVGG(cfg=arch.cfg,
+        net = OrthoVGG(cfg=args.cfg,
                        block=blocks[args.block],
                        in_channels=3,
                        num_classes=10,
@@ -265,8 +364,8 @@ best_acc = 0
 start_epoch = 0
 assert args.checkpoint in [0, 1], f"Checkpoint must be 1 or 0, got {args.checkpoint}"
 if args.checkpoint == 1:
-    model_dict = torch.load(f'./checkpoint_{args.dataset}_{time.strftime("%Y_%m_%d")}/' +
-                            f'ckpt_slant_wrn_16_1_4x4_alpha_1.3__87.92.t7')
+    model_dict = torch.load(f'./checkpoint_{args.dataset}_2019_06_20/' +
+                            f'ckpt_slant_wrn_22_3_4x4__94.48.t7')
     start_epoch = model_dict['epoch']
     net.load_state_dict(model_dict['net'])
     best_acc = model_dict['acc']
@@ -281,8 +380,10 @@ test_accs = []  # type: List[float]
 train_error = []
 test_error = []
 
-criterion = nn.CrossEntropyLoss()
-
+if weights is not None:
+    criterion = nn.CrossEntropyLoss(weight=weights.cuda())  # weight=torch.from_numpy(weights).cuda())
+else:
+    criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(params=net.parameters(),
                       lr=base_lr,
                       momentum=0.9,
@@ -297,11 +398,11 @@ def get_lr(optimizer=optimizer):
     for param_group in optimizer.param_groups:
         return param_group['lr']
 
+
 def one_hot_enc(output, target, num_classes=7):
     labels = target.view((-1, 1))
     batch_size, _ = labels.size()
-    labels_one_hot = torch.FloatTensor(
-        batch_size, num_classes).zero_().to('cuda')
+    labels_one_hot = torch.FloatTensor(batch_size, num_classes).zero_().to('cuda')
     labels_one_hot.scatter_(1, labels, 1)
     return labels_one_hot
 
@@ -314,6 +415,10 @@ def train(epoch):
     train_loss = 0
     correct = 0
     total = 0
+    f1 = 0
+    prec = 0
+    rec = 0
+    acc = 0
     for batch_idx, (inputs, targets) in enumerate(tqdm(trainloader)):
         inputs, targets = inputs.to('cuda'), targets.to('cuda')
         outputs = net(inputs)
@@ -327,8 +432,22 @@ def train(epoch):
         _, predicted = outputs.max(1)
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
+        f1 += f1_score(y_pred=predicted.cpu().numpy(),
+                       y_true=targets.cpu().numpy(),
+                       average="weighted")
+        prec += precision_score(y_pred=predicted.cpu().numpy(),
+                                y_true=targets.cpu().numpy(),
+                                average="weighted")
+        rec += recall_score(y_pred=predicted.cpu().numpy(),
+                            y_true=targets.cpu().numpy(),
+                            average="weighted")
+        acc += accuracy_score(y_pred=predicted.cpu().numpy(),
+                              y_true=targets.cpu().numpy())
     print(
         'Loss: %.3f | Acc: %.3f%% (%d/%d)' % (train_loss / (len(trainloader)), 100. * correct / total, correct, total))
+    print(
+        'Precision: %.3f | F1: %.3f | Recall: %.3f | Acc (sklearn): %.3f%%\n' % \
+        (prec/ len(trainloader), f1/len(trainloader), rec/ len(trainloader), 100.*acc / len(trainloader)))
     train_accs.append(100. * correct / total)
     train_error.append(100. - 100. * correct / total)
     train_losses.append(train_loss)
@@ -340,6 +459,10 @@ def test(epoch):
     test_loss = 0
     correct = 0
     total = 0
+    f1 = 0
+    prec = 0
+    rec = 0
+    acc = 0
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(tqdm(testloader)):
             inputs, targets = inputs.to('cuda'), targets.to('cuda')
@@ -351,8 +474,23 @@ def test(epoch):
 
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
+            f1 += f1_score(y_pred=predicted.cpu().numpy(),
+                           y_true=targets.cpu().numpy(),
+                           average="weighted")
+            prec += precision_score(y_pred=predicted.cpu().numpy(),
+                                    y_true=targets.cpu().numpy(),
+                                    average="weighted")
+            rec += recall_score(y_pred=predicted.cpu().numpy(),
+                                y_true=targets.cpu().numpy(),
+                                average="weighted")
+            acc += accuracy_score(y_pred=predicted.cpu().numpy(),
+                                  y_true=targets.cpu().numpy())
         print('Loss: %.3f | Acc: %.3f%% (%d/%d) | Error: %.3f%%' % (
             test_loss / (len(testloader)), 100. * correct / total, correct, total, 100. * (1. - correct / total)))
+        print(
+            'Precision: %.3f | F1: %.3f | Recall: %.3f | Acc (sklearn): %.3f%%\n' % \
+            (prec / len(testloader), f1 / len(testloader), rec / len(testloader), 100.*acc / len(testloader)))
+
         test_accs.append(100. * correct / total)
         test_error.append(100. - 100. * correct / total)
         test_losses.append(test_losses)
@@ -414,6 +552,8 @@ for epoch in range(start_epoch, 200):
     gc.collect()
     torch.cuda.empty_cache()
 
+if use_cm:
+    confusion_matrix(y)
 del trainset, testset, trainloader, testloader
 gc.collect()
 
@@ -445,10 +585,10 @@ fig.savefig(f'./checkpoint_{args.dataset}_{time.strftime("%Y_%m_%d")}/accs_test_
             f'{args.block}_{args.arch}_{args.depth}_{args.widen}' +
             a + f'__{args.kernel_size}x{args.kernel_size}_{best_acc:.2f}.png')
 plt.close()
-np.save(f'./checkpoint_{args.dataset}_{time.strftime("%Y_%m_%d")}/accs_' +
+np.save(f'./checkpoint_{args.dataset}_{time.strftime("%Y_%m_%d")}/accs_train_' +
         f'{args.block}_{args.arch}_{args.depth}_{args.widen}' +
         a + f'__{best_acc:.2f}', np.asarray(train_accs))
-np.save(f'./checkpoint_{args.dataset}_{time.strftime("%Y_%m_%d")}/accs_train_' +
+np.save(f'./checkpoint_{args.dataset}_{time.strftime("%Y_%m_%d")}/accs_test_' +
         f'{args.block}_{args.arch}_{args.depth}_{args.widen}' +
         a + f'__{args.kernel_size}x{args.kernel_size}_{best_acc:.2f}', np.asarray(test_accs))
 gc.collect()
